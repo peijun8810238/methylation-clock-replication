@@ -1,0 +1,28 @@
+project:
+  name: methylation-clock-replication
+
+paths:
+  # inputs (relative to repo root)
+  beta_csv: data/processed/GSE40279_beta_for_R.csv
+  agep_csv: data/processed/GSE40279_DNAmAge_agep.csv
+  coef_csv: data/processed/horvath_coefficients_from_runtime.csv
+  sample_metadata_csv: data/processed/GSE40279_sample_metadata.csv
+
+outputs:
+  results_dir: data/results
+  figs_dir: figs
+  run_name: gse40279_horvath
+
+compare:
+  # agep results file column names
+  sample_id_column: sample
+  agep_age_column: DNAmAge_agep
+
+horvath:
+  adult_age: 20.0
+  intercept_label: "(Intercept)"
+  fill_missing_cpg: 0.0
+
+logging:
+  level: INFO   # DEBUG / INFO / WARNING / ERROR
+  # log files are written under: <results_dir>/logs/
