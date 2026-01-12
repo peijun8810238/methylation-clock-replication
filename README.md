@@ -44,6 +44,7 @@ This includes:
 ### Command
 
 ```bash
+pip install -e . 
 python scripts/prepare_inputs.py
 ```
 
@@ -81,6 +82,7 @@ This stage performs the following steps:
 ### Command
 
 ```bash
+pip install -e . 
 python run_pipeline.py
 ```
 
@@ -202,6 +204,7 @@ This pipeline is suitable for:
 ### 実行例
 
 ```bash
+pip install -e . 
 python scripts/prepare_inputs.py
 ```
 
@@ -237,6 +240,7 @@ data/processed/
 ### 実行例
 
 ```bash
+pip install -e . 
 python run_pipeline.py
 ```
 
