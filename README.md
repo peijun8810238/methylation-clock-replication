@@ -3,8 +3,6 @@
 This document describes the **end-to-end pipeline design** for replicating the  
 Horvath DNA methylation age (DNAmAge) using public GEO data.
 
-It complements the main `README.md` by focusing on **pipeline structure, stages, and reproducibility**.
-
 ---
 
 ## Purpose
@@ -164,9 +162,6 @@ This pipeline is suitable for:
 
 このドキュメントは、Horvath の **DNAメチル化年齢（DNAmAge）** を再現するための  
 **自動化パイプラインの設計・実行手順**をまとめたものです。
-
-メインの `README.md` がプロジェクト全体の概要であるのに対し、本ファイルは  
-**処理ステージ（Prepare / Pipeline）・再現性・運用**にフォーカスしています。
 
 ---
 
