@@ -1,181 +1,258 @@
-Horvath DNAmAge Replication Pipeline
+# Methylation Clock Replication Pipeline (Horvath DNAmAge)
 
-A reproducible Python implementation and validation of the Horvath DNA methylation age clock.
+This document describes the **end-to-end pipeline design** for replicating the  
+Horvath DNA methylation age (DNAmAge) using public GEO data.
 
-⸻
+It complements the main `README.md` by focusing on **pipeline structure, stages, and reproducibility**.
 
-Overview
+---
 
-This repository provides a fully reproducible implementation of the Horvath
-DNA methylation age (DNAmAge) model, using publicly available DNA methylation
-array data from GEO (GSE40279).
+## Purpose
 
-The project is designed to clearly separate:
-	•	exploratory analysis and understanding (Jupyter notebooks)
-	•	production-ready, automated analysis (Python pipeline)
+The goal of this pipeline is to:
 
-The Python implementation is carefully validated against the reference
-R implementation (wateRmelon::agep) to ensure correctness.
+- Reproduce the Horvath DNAmAge model in **Python**
+- Validate results against the canonical **R implementation (`agep()` from wateRmelon)**
+- Provide a **fully automated, config-driven workflow** suitable for research and client work
 
-⸻
+---
 
-Project structure
+## Pipeline Overview
 
-.
-├── data/
-│   ├── raw/                # Raw GEO data (GSE40279)
-│   ├── processed/          # Processed β matrices, metadata, predictions
-│   └── external/           # External reference files
-├── notebooks/              # Exploratory and validation notebooks
-│   ├── 01_preprocess_GSE40279.ipynb
-│   ├── 02_horvath_python.ipynb
-│   ├── 03_compare_with_agep.ipynb
-│   └── README.md
-├── src/
-│   └── mclock/             # Automated DNAmAge pipeline
-├── config/
-│   └── default.yaml        # Pipeline configuration
-├── run_pipeline.py         # Pipeline entry point
-├── pyproject.toml
-└── README.md
+The workflow consists of two main stages:
 
+1. **Prepare stage**: raw GEO data → processed inputs  
+2. **Pipeline stage**: DNAmAge prediction → validation and visualization  
 
-⸻
+Each stage can be executed independently.
 
-Notebook workflow
+---
 
-The notebooks document the full reasoning process behind the pipeline and are
-intended for transparency and step-by-step understanding.
+## Stage 1: Prepare (raw → processed)
 
-Recommended execution order:
-	1.	01_preprocess_GSE40279.ipynb
-Inspect the raw GEO series matrix, construct a CpG × Sample β-value matrix,
-extract sample metadata (age, gender), and export processed data.
-	2.	02_horvath_python.ipynb
-Implement the Horvath DNAmAge model explicitly in Python, including
-the original inverse age transformation (invF).
-	3.	03_compare_with_agep.ipynb
-Validate the Python implementation against the reference R implementation
-(wateRmelon::agep) using quantitative metrics and visual inspection.
+### Description
 
-For detailed descriptions, see notebooks/README.md.
+The prepare stage generates all intermediate files required by the main pipeline.
 
-⸻
+This includes:
 
-Automated pipeline
+- β-value matrix derived from GEO series matrix files
+- Sample metadata (chronological age, sex)
+- Horvath model coefficients extracted at runtime from R
+- DNAmAge estimates computed using R `agep()`
 
-After validation in the notebooks, the same logic is implemented as an
-automated, configuration-driven pipeline under src/mclock/.
+### Command
 
-Pipeline features:
-	•	configuration-based execution (no hard-coded paths)
-	•	reproducible DNAmAge prediction
-	•	comparison with reference results
-	•	structured logging and automatic figure generation
+```bash
+python scripts/prepare_inputs.py
+```
 
-Example usage
+Optional flags:
 
-pip install -e .
-python run_pipeline.py --config config/default.yaml
+```bash
+--force           # re-generate outputs even if files exist
+--skip-metadata   # skip GEO metadata extraction
+--skip-r          # skip R-based steps (coefficients / agep)
+```
 
+### Outputs
 
-Prepare stage (raw → processed)
+```text
+data/processed/
+├── GSE40279_beta_for_R.csv
+├── GSE40279_sample_metadata.csv
+├── horvath_coefficients_from_runtime.csv
+└── GSE40279_DNAmAge_agep.csv
+```
 
-Before running the main pipeline, generate the required processed inputs (β matrix, sample metadata, reference predictions, and coefficient table). This stage is implemented in scripts/prepare_inputs.py and writes outputs to the paths specified in config/default.yaml (paths.*).
+---
 
-What it produces (typical)
-- data/processed/GSE40279_beta_for_R.csv (β-value matrix; CpGs × samples)
-- data/processed/GSE40279_sample_metadata.csv (age / gender extracted from GEO metadata)
-- data/processed/horvath_coefficients_from_runtime.csv (Horvath coefficients exported from wateRmelon at runtime)
-- data/processed/GSE40279_DNAmAge_agep.csv (reference DNAmAge from wateRmelon::agep)
+## Stage 2: Pipeline (prediction + validation)
 
-Dependencies
-- Python (optional): GEOparse (required only for metadata extraction)
-  - pip install GEOparse
-- R (required for reference outputs): Rscript available in PATH
-  - R packages: wateRmelon (Bioconductor), and its dependencies
-    (If you already ran agep() successfully in your R environment, you are good.)
+### Description
 
-Run (prepare)
+This stage performs the following steps:
 
-pip install -e .
-python scripts/prepare_inputs.py --config config/default.yaml
+- Load processed inputs
+- Compute DNAmAge in Python using Horvath coefficients
+- Compare Python results against R `agep()` output
+- Generate summary metrics and figures
 
-Useful flags
-- --force          Recompute outputs even if target files already exist
-- --skip-metadata  Skip GEO metadata extraction (no GEOparse needed)
-- --skip-r         Skip R steps (no coefficients / agep reference will be generated)
+### Command
 
-Notes on large files
-Some processed files (especially β matrices) can be very large. In most cases you should not commit data/processed outputs to GitHub. Keep them local, add them to .gitignore, or use Git LFS if you must version large artifacts.
+```bash
+python run_pipeline.py
+```
 
+### Outputs
 
-⸻
+- DNAmAge comparison table
+- Summary metrics (MAE, correlation)
+- Scatter plot comparing Python vs R predictions
 
-Reproducibility details
-	•	Raw data source: GEO accession GSE40279
-	•	DNAmAge model: Horvath (2013)
-	•	Reference implementation: wateRmelon::agep
-	•	Python implementation explicitly includes:
-	•	CpG alignment
-	•	linear predictor computation
-	•	original inverse age transformation (invF)
+---
 
-⸻
+## Project Structure (Relevant Parts)
 
-About this work / Availability for collaboration
+```text
+src/mclock/
+├── pipeline.py        # main DNAmAge prediction pipeline
+├── prepare.py         # prepare-stage orchestration
+├── config.py          # config parsing and validation
+├── logger.py          # centralized logging setup
+├── rutils.py          # R script execution helpers
+└── io/
+    ├── files.py       # CSV / filesystem I/O
+    └── geo.py         # GEO-specific parsing utilities
+```
 
-This repository demonstrates a transparent and auditable reproduction of a
-published epigenetic clock, with emphasis on:
-	•	epigenomics and DNA methylation analysis
-	•	cross-language reproducibility (R ↔ Python)
-	•	maintainable, well-documented analysis pipelines
-	•	clear separation of exploratory and production code
+---
 
-I am available for collaboration or consulting work related to:
-	•	DNA methylation clocks and epigenetic biomarkers
-	•	methylation array / NGS data analysis
-	•	reproduction and validation of published bioinformatics methods
-	•	Python/R-based analysis pipeline development
+## Configuration Design
 
-If you are interested in collaboration or project-based work,
-please feel free to reach out.
+All paths and parameters are defined in a YAML config file:
 
-⸻
+```text
+config/default.yaml
+```
 
-⸻
+Design principles:
 
-本リポジトリについて（日本語）
+- No hardcoded paths in code
+- All I/O locations configurable
+- Safe defaults with explicit overrides
 
-本リポジトリは、Horvath DNAメチル化年齢（DNAmAge）モデルを
-Python で再現・検証することを目的とした解析・実装例です。
+---
 
-GEO 公開データ（GSE40279）を用い、
-	•	生データ構造の理解と前処理
-	•	Horvath 論文に基づく DNAmAge モデルの明示的実装
-	•	R 実装（wateRmelon::agep）との定量的・視覚的検証
-	•	notebook と自動化パイプラインの分離設計
+## Reproducibility Principles
 
-を通じて、再現性と可読性を重視した解析フローを示しています。
+- Large data files are **not tracked by Git**
+- All results are reproducible from public GEO data
+- R and Python steps are logged with timestamps
+- Each stage can be re-run independently
 
-⸻
+---
 
-想定する活用・対応可能な内容
+## Intended Use Cases
 
-本プロジェクトは、以下のような業務・研究テーマを想定した
-ポートフォリオでもあります。
-	•	DNAメチル化クロック・エピゲノム指標の解析
-	•	メチル化アレイ／NGS データの前処理・解析
-	•	既存論文手法（主に R 実装）の Python 化・再現検証
-	•	再現性・保守性を重視した解析パイプラインの設計・実装
+This pipeline is suitable for:
 
-これらに関連する 共同研究・技術支援・業務委託 等のご相談がありましたら、
-お気軽にご連絡ください。
+- Epigenetic clock replication studies
+- DNA methylation analysis on GEO / TCGA datasets
+- Python–R interoperability demonstrations
+- Client-facing, reproducible bioinformatics workflows
 
-⸻
+---
 
-License
+## Notes
 
-This project is intended for research and educational purposes.
-Please check the original data source and software licenses when using
-this repository for downstream applications.
+- The Horvath model coefficients are **not hardcoded** and are extracted dynamically from R
+- Python implementation strictly mirrors the published model application
+- This pipeline focuses on **model application**, not re-training
+
+---
+
+## References
+
+- Horvath S. (2013). *DNA methylation age of human tissues and cell types*
+- GEO accession: **GSE40279**
+---
+
+# 日本語解説（Japanese）
+
+このドキュメントは、Horvath の **DNAメチル化年齢（DNAmAge）** を再現するための  
+**自動化パイプラインの設計・実行手順**をまとめたものです。
+
+メインの `README.md` がプロジェクト全体の概要であるのに対し、本ファイルは  
+**処理ステージ（Prepare / Pipeline）・再現性・運用**にフォーカスしています。
+
+---
+
+## 目的
+
+- Horvath DNAmAge を **Python で忠実に計算**できるようにする  
+- R（wateRmelon の `agep()`）の結果と **整合性を確認**する  
+- 設定ファイル駆動（ハードコーディング無し）で、**研究・業務でも再利用できる**形にする  
+
+---
+
+## パイプライン全体像
+
+本ワークフローは 2 つのステージから成ります。
+
+1. **Prepare ステージ**（raw → processed）  
+   公開 GEO データから、推定・検証に必要な入力ファイルを生成します。
+
+2. **Pipeline ステージ**（prediction + validation）  
+   Python で DNAmAge を推定し、R `agep()` の結果と比較して指標・図を出力します。
+
+各ステージは独立に実行できます。
+
+---
+
+## Stage 1: Prepare（raw → processed）
+
+### 何をするか
+
+- GEO series matrix から **β値行列（CpG × サンプル）** を作成  
+- GEO から **サンプルメタデータ（年齢・性別など）** を抽出  
+- R 実行時に Horvath の係数を取得し、CSV として保存  
+- R `agep()` を実行し、DNAmAge を CSV 出力  
+
+### 実行例
+
+```bash
+python scripts/prepare_inputs.py
+```
+
+オプション例：
+
+```bash
+--force           # 既存ファイルがあっても再生成
+--skip-metadata   # GEO metadata 抽出をスキップ
+--skip-r          # R ステップ（係数 / agep）をスキップ
+```
+
+### 生成物（例）
+
+```text
+data/processed/
+├── GSE40279_beta_for_R.csv
+├── GSE40279_sample_metadata.csv
+├── horvath_coefficients_from_runtime.csv
+└── GSE40279_DNAmAge_agep.csv
+```
+
+---
+
+## Stage 2: Pipeline（推定・検証）
+
+### 何をするか
+
+- processed 入力を読み込み  
+- Horvath 係数を使って **Python で DNAmAge を計算**  
+- R `agep()` の DNAmAge と **比較（MAE / 相関など）**  
+- **散布図**を出力  
+
+### 実行例
+
+```bash
+python run_pipeline.py
+```
+
+---
+
+## 再現性・運用の考え方
+
+- `data/raw/` と `data/processed/` は **GitHub で追跡しない**（大容量のため）  
+- すべての出力は **公開データから再生成可能**  
+- 重要な I/O や R 実行ログは **ログファイルに記録**される  
+
+---
+
+## 想定ユースケース
+
+- エピジェネティッククロックの再現・検証  
+- GEO/TCGA などのメチル化データの前処理と推定パイプライン  
+- Python ↔ R の再現可能な連携例（ポートフォリオ / 業務設計）  
+
